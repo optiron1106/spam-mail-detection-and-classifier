@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spam Email Detector</title>
+    <style>
+      :root { --bg: #0b1020; --fg: #eef2ff; --muted: #a3adcc; --accent: #7c3aed; --ok: #10b981; --warn: #ef4444; }
+      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: var(--bg); color: var(--fg); }
+      .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+      h1 { font-weight: 700; letter-spacing: 0.3px; }
+      p.lead { color: var(--muted); margin-top: -6px; }
+      .card { background: #121737; border: 1px solid #1f2a60; border-radius: 12px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+      textarea { width: 100%; min-height: 160px; border: 1px solid #27336b; background: #0e1431; color: var(--fg); padding: 12px; border-radius: 8px; resize: vertical; font-size: 15px; line-height: 1.5; }
+      .actions { display: flex; gap: 12px; align-items: center; margin-top: 14px; }
+      button { background: var(--accent); color: white; border: 0; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .result { margin-top: 18px; font-size: 15px; }
+      .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 700; }
+      .ham { background: rgba(16,185,129,0.15); color: var(--ok); border: 1px solid rgba(16,185,129,0.4); }
+      .spam { background: rgba(239,68,68,0.15); color: var(--warn); border: 1px solid rgba(239,68,68,0.4); }
+      .footer { margin-top: 20px; color: var(--muted); font-size: 13px; }
+      .error { color: var(--warn); }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Spam Email Detector</h1>
+      <p class="lead">Enter an email body below to classify it as spam or ham.</p>
+
+      <div class="card">
+        <label for="emailText">Email text</label>
+        <textarea id="emailText" placeholder="Paste or type your email here..."></textarea>
+        <div class="actions">
+          <button id="submitBtn">Check</button>
+          <span id="status" class="muted"></span>
+        </div>
+        <div id="result" class="result"></div>
+      </div>
+
+      <div class="footer">Backend: POST <code>/api/predict</code> with JSON <code>{ text: string }</code>.</div>
+    </div>
+
+    <script>
+      const btn = document.getElementById('submitBtn');
+      const textarea = document.getElementById('emailText');
+      const statusEl = document.getElementById('status');
+      const resultEl = document.getElementById('result');
+
+      async function classify() {
+        const text = textarea.value.trim();
+        resultEl.innerHTML = '';
+        statusEl.textContent = '';
+        if (!text) {
+          resultEl.innerHTML = '<span class="error">Please enter some text.</span>';
+          return;
+        }
+        btn.disabled = true;
+        statusEl.textContent = 'Predicting...';
+        try {
+          const res = await fetch('/api/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.detail || 'Request failed');
+
+          const { label, probabilities } = data;
+          const spam = (probabilities?.spam ?? 0) * 100;
+          const ham = (probabilities?.ham ?? 0) * 100;
+          const badge = label === 'spam' ? '<span class="badge spam">SPAM</span>' : '<span class="badge ham">HAM</span>';
+          resultEl.innerHTML = `${badge} &nbsp; Spam: ${spam.toFixed(1)}% • Ham: ${ham.toFixed(1)}%`;
+        } catch (err) {
+          resultEl.innerHTML = `<span class="error">${err.message}</span>`;
+        } finally {
+          btn.disabled = false;
+          statusEl.textContent = '';
+        }
+      }
+
+      btn.addEventListener('click', classify);
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) classify();
+      });
+    </script>
+  </body>
+</html>
